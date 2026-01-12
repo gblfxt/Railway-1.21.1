@@ -1209,6 +1209,7 @@
   "railways.station.train_limit": "Limit",
   "railways.station.train_limit.tooltip.1": "Reserve station before approaching train has arrived",
   "railways.station.train_limit.tooltip.2": "to more evenly space trains in a multi-platform station",
+  "railways.station.icon_type": "Train Icon",
   "railways.switch.auto_mode": "Switching Mode",
   "railways.switch.state.normal": "-> Straight",
   "railways.switch.state.reverse_left": "-> Left",

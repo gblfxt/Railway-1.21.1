@@ -40,6 +40,7 @@
   "railways.station.train_limit": "Limit",
   "railways.station.train_limit.tooltip.1": "Reserve station before approaching train has arrived",
   "railways.station.train_limit.tooltip.2": "to more evenly space trains in a multi-platform station",
+  "railways.station.icon_type": "Train Icon",
 
   "railways.tooltip.switch.header": "Switch Information",
   "railways.tooltip.switch.state": "Switch State:",

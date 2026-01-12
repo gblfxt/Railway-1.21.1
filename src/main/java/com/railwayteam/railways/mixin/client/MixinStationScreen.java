@@ -18,62 +18,109 @@
 
 package com.railwayteam.railways.mixin.client;
 
+import com.railwayteam.railways.mixin_interfaces.ILimited;
+import com.railwayteam.railways.registry.CRPackets;
+import com.railwayteam.railways.util.packet.StationLimitPacket;
 import com.simibubi.create.content.trains.entity.Train;
+import net.createmod.catnip.platform.CatnipServices;
+import com.simibubi.create.content.trains.entity.TrainIconType;
 import com.simibubi.create.content.trains.station.AbstractStationScreen;
 import com.simibubi.create.content.trains.station.GlobalStation;
 import com.simibubi.create.content.trains.station.StationBlockEntity;
 import com.simibubi.create.content.trains.station.StationScreen;
+import com.simibubi.create.content.trains.station.TrainEditPacket;
 import com.simibubi.create.foundation.gui.widget.ScrollInput;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Mixin(value = StationScreen.class, remap = false)
 public abstract class MixinStationScreen extends AbstractStationScreen {
     @Shadow private EditBox trainNameBox;
-    private Checkbox limitEnableCheckbox;
-    private List<ResourceLocation> iconTypes;
-    private ScrollInput iconTypeScroll;
+
+    @Unique
+    private Checkbox railways$limitCheckbox;
+    @Unique
+    private List<ResourceLocation> railways$iconTypes;
+    @Unique
+    private ScrollInput railways$iconTypeScroll;
 
     private MixinStationScreen(StationBlockEntity te, GlobalStation station) {
         super(te, station);
     }
 
     @Inject(method = "init", at = @At(value = "INVOKE", target = "Lcom/simibubi/create/content/trains/station/StationScreen;tickTrainDisplay()V"), remap = true)
-    private void initCheckbox(CallbackInfo ci) {
+    private void railways$initCheckbox(CallbackInfo ci) {
         int x = guiLeft;
         int y = guiTop;
-        // TODO 1.21: Checkbox and train icon editing UI requires porting to new API; temporarily disabled.
-        // addRenderableWidget(limitEnableCheckbox);
-        // icon type scroll temporarily disabled
-        iconTypeScroll = null;
+
+        boolean limitEnabled = station != null && ((ILimited) station).isLimitEnabled();
+        railways$limitCheckbox = Checkbox.builder(
+                Component.translatable("railways.station.train_limit"),
+                Minecraft.getInstance().font)
+            .pos(x + background.getWidth() - 98, y + background.getHeight() - 26)
+            .selected(limitEnabled)
+            .onValueChange((checkbox, selected) ->
+                CRPackets.PACKETS.send(new StationLimitPacket(blockEntity.getBlockPos(), selected)))
+            .build();
+        addRenderableWidget(railways$limitCheckbox);
+
+        railways$iconTypes = new ArrayList<>(TrainIconType.REGISTRY.keySet());
+        railways$iconTypeScroll = new ScrollInput(x + 4, y + 17, 160, 14)
+            .withRange(0, railways$iconTypes.size())
+            .inverted()
+            .titled(Component.literal("Train Icon").withStyle(s -> s.withColor(0xFFFFFF)))
+            .calling(idx -> {
+                Train imminentTrain = getImminent();
+                if (imminentTrain == null)
+                    return;
+                ResourceLocation iconId = railways$iconTypes.get(idx);
+                TrainIconType iconType = TrainIconType.byId(iconId);
+                imminentTrain.icon = iconType;
+                CatnipServices.NETWORK.sendToServer(
+                    new TrainEditPacket.Serverbound(
+                        imminentTrain.id,
+                        imminentTrain.name.getString(),
+                        iconId,
+                        imminentTrain.mapColorIndex
+                    )
+                );
+            });
+        railways$iconTypeScroll.active = false;
     }
 
     @Inject(method = "tickTrainDisplay", at = @At("HEAD"))
-    private void tickIconScroll(CallbackInfo ci) {
-        if (iconTypeScroll == null)
+    private void railways$tickIconScroll(CallbackInfo ci) {
+        if (railways$iconTypeScroll == null)
             return;
+
         Train train = displayedTrain.get();
 
         if (train == null) {
-            if (iconTypeScroll.active) {
-                iconTypeScroll.active = false;
-                removeWidget(iconTypeScroll);
+            if (railways$iconTypeScroll.active) {
+                railways$iconTypeScroll.active = false;
+                removeWidget(railways$iconTypeScroll);
             }
 
             Train imminentTrain = getImminent();
 
             if (imminentTrain != null) {
-                iconTypeScroll.active = true;
-                iconTypeScroll.setState(iconTypes.indexOf(imminentTrain.icon.getId()));
-                addRenderableWidget(iconTypeScroll);
+                railways$iconTypeScroll.active = true;
+                int idx = railways$iconTypes.indexOf(imminentTrain.icon.getId());
+                if (idx >= 0)
+                    railways$iconTypeScroll.setState(idx);
+                addRenderableWidget(railways$iconTypeScroll);
             }
         }
     }

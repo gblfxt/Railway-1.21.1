@@ -24,13 +24,19 @@ import com.simibubi.create.content.trains.graph.TrackGraphLocation;
 import com.simibubi.create.content.trains.station.GlobalStation;
 import com.simibubi.create.content.trains.station.StationBlockEntity;
 import com.simibubi.create.content.trains.station.StationEditPacket;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/**
+ * Mixin for Create's StationEditPacket.
+ *
+ * Note: In Create 1.21, the packet serialization system changed from writeSettings/readSettings
+ * to StreamCodec. Station limiting is now handled by a separate StationLimitPacket.
+ * This mixin only handles the applySettings hook for compatibility.
+ */
 @Mixin(value = StationEditPacket.class, remap = false)
 public abstract class MixinStationEditPacket implements ILimited {
     private Boolean limitEnabled;
@@ -45,30 +51,9 @@ public abstract class MixinStationEditPacket implements ILimited {
         return limitEnabled;
     }
 
-    // inject right before
-    //      buffer.writeBoolean(assemblyMode);
-    //		buffer.writeUtf(name);
-    @Inject(method = "writeSettings", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/FriendlyByteBuf;writeBoolean(Z)Lio/netty/buffer/ByteBuf;", ordinal = 4, remap = true), cancellable = true)
-    private void writeLimitEnabled(FriendlyByteBuf buffer, CallbackInfo ci) {
-        buffer.writeBoolean(limitEnabled != null);
-        if (limitEnabled != null) {
-            buffer.writeBoolean(limitEnabled);
-            ci.cancel();
-            return;
-        }
-    }
-
-    // inject right before
-    // 		assemblyMode = buffer.readBoolean();
-    //		name = buffer.readUtf(256);
-    @Inject(method = "readSettings", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/FriendlyByteBuf;readBoolean()Z", ordinal = 4, remap = true), cancellable = true)
-    private void readLimitEnabled(FriendlyByteBuf buffer, CallbackInfo ci) {
-        if (buffer.readBoolean()) {
-            limitEnabled = buffer.readBoolean();
-            ci.cancel();
-            return;
-        }
-    }
+    // Note: writeSettings and readSettings injections removed for Create 1.21 compatibility.
+    // Create 1.21 uses StreamCodec for packet serialization instead of these methods.
+    // Station limiting is now handled via StationLimitPacket sent from MixinStationScreen.
 
     @Inject(method = "applySettings(Lnet/minecraft/server/level/ServerPlayer;Lcom/simibubi/create/content/trains/station/StationBlockEntity;)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/state/BlockState;getBlock()Lnet/minecraft/world/level/block/Block;"), remap = true)
     private void applyLimit(ServerPlayer player, StationBlockEntity te, CallbackInfo ci) {
